@@ -1,0 +1,1 @@
+Follow-up from PM sync 2024-04-01: API v2 launch is moved to July 1 due to security review. This replaces the earlier June 15 date.

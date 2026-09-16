@@ -1,0 +1,20 @@
+services:
+  typesense:
+    image: typesense/typesense:29.0
+    restart: on-failure
+    ports:
+      - "8108:8108"
+    volumes:
+      - ./typesense-data:/data
+    command: >
+      --data-dir /data
+      --api-key=xyz
+      --enable-cors
+
+  dashboard:
+    image: bfritscher/typesense-dashboard:latest
+    container_name: typesense-dashboard
+    ports:
+      - "5000:80"
+    depends_on:
+      - typesense

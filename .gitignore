@@ -1,7 +1,13 @@
 # Cache
 __pycache__
 
+# Secrets
+.env
+
 # docs
 problem_statement
 openspec
 .cursor
+
+# Data
+typesense-data

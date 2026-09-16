@@ -1,0 +1,1 @@
+Team offsite 2024-03-12: We agreed the public API v2 launch target is June 15. Backend owns the migration checklist.
