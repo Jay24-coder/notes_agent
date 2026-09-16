@@ -1,16 +1,22 @@
 [project]
 name = "itw"
 version = "0.1.0"
-description = "Add your description here"
+description = "Notes Ingestion & Recall Agent"
 readme = "README.md"
 authors = [
     { name = "Jay Parmar", email = "jay.parmar@focalworks.in" }
 ]
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "click>=8.1",
+    "openai>=1.40",
+    "python-dotenv>=1.0",
+    "typesense>=0.21",
+    "httpx>=0.27",
+]
 
 [project.scripts]
-itw = "itw:main"
+itw = "itw.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.12.7,<0.13.0"]
