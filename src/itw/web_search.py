@@ -1,36 +1,75 @@
 from __future__ import annotations
 
-import json
-import urllib.parse
-import urllib.request
+from dataclasses import dataclass
+
+from tavily import TavilyClient
 
 from itw.errors import ItwError
 
 
-def live_web_search(query: str) -> str:
-    """Lightweight DuckDuckGo instant-answer lookup (no API key)."""
-    url = (
-        "https://api.duckduckgo.com/?"
-        + urllib.parse.urlencode({"q": query, "format": "json", "no_redirect": 1})
-    )
+@dataclass(frozen=True)
+class LiveWebSearchResult:
+    body: str
+    source_urls: list[str]
+
+
+def _require_tavily_key(tavily_api_key: str) -> str:
+    key = tavily_api_key.strip()
+    if not key:
+        raise ItwError(
+            "TAVILY_API_KEY is not set. Add it to .env when using --web-search."
+        )
+    return key
+
+
+def live_web_search(query: str, *, tavily_api_key: str) -> LiveWebSearchResult:
+    """Tavily Search for out-of-coverage questions (--web-search only)."""
+    api_key = _require_tavily_key(tavily_api_key)
     try:
-        with urllib.request.urlopen(url, timeout=10) as resp:
-            payload = json.loads(resp.read().decode("utf-8"))
+        client = TavilyClient(api_key=api_key)
+        response = client.search(
+            query,
+            search_depth="basic",
+            max_results=5,
+            include_answer=True,
+            topic="general",
+        )
     except Exception as exc:  # noqa: BLE001
         raise ItwError(f"Live web search failed: {exc}") from exc
 
-    abstract = (payload.get("AbstractText") or "").strip()
-    heading = (payload.get("Heading") or "").strip()
-    if abstract:
-        source = heading or payload.get("AbstractSource") or "DuckDuckGo"
-        return f"{abstract}\n(Source hint: {source})"
+    results = response.get("results") or []
+    source_urls: list[str] = []
+    for item in results:
+        if not isinstance(item, dict):
+            continue
+        url = (item.get("url") or "").strip()
+        if url and url not in source_urls:
+            source_urls.append(url)
 
-    related = payload.get("RelatedTopics") or []
-    snippets: list[str] = []
-    for item in related[:3]:
-        if isinstance(item, dict) and item.get("Text"):
-            snippets.append(str(item["Text"]))
-    if snippets:
-        return "\n".join(snippets)
+    answer = (response.get("answer") or "").strip()
+    if answer:
+        body = answer
+    else:
+        snippets: list[str] = []
+        for item in results[:5]:
+            if not isinstance(item, dict):
+                continue
+            title = (item.get("title") or "").strip()
+            content = (item.get("content") or "").strip()
+            url = (item.get("url") or "").strip()
+            if not content and not title:
+                continue
+            line = title or url or "Result"
+            if content:
+                line = f"{line}: {content}"
+            if url:
+                line = f"{line} ({url})"
+            snippets.append(line)
+        if not snippets:
+            raise ItwError("Live web search returned no usable results for this query.")
+        body = "\n\n".join(snippets)
 
-    raise ItwError("Live web search returned no usable results for this query.")
+    if source_urls:
+        body += "\n\nLive search sources:\n" + "\n".join(f"- {u}" for u in source_urls)
+
+    return LiveWebSearchResult(body=body, source_urls=source_urls)

@@ -28,7 +28,7 @@
 
 1. Embed the question.
 2. Typesense vector search (top-k); relevance gate via `RETRIEVAL_MAX_VECTOR_DISTANCE`.
-3. If not covered: plain message or optional DuckDuckGo instant answers (`SOURCE: LIVE WEB SEARCH`).
+3. If not covered: plain message or optional Tavily search when `--web-search` is set (`SOURCE: LIVE WEB SEARCH`, external URLs).
 4. Else LLM answers from retrieved excerpts only; citations required; conflicts surfaced from stored metadata and prompt instructions.
 
 ### Persistence

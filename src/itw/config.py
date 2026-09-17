@@ -21,6 +21,7 @@ class Settings:
     typesense_api_key: str
     typesense_collection: str
     retrieval_max_vector_distance: float
+    tavily_api_key: str
 
 
 def load_settings() -> Settings:
@@ -58,4 +59,5 @@ def load_settings() -> Settings:
         typesense_api_key=typesense_api_key,
         typesense_collection=os.getenv("TYPESENSE_COLLECTION", "notes"),
         retrieval_max_vector_distance=max_dist,
+        tavily_api_key=os.getenv("TAVILY_API_KEY", "").strip(),
     )

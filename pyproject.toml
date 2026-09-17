@@ -13,6 +13,7 @@ dependencies = [
     "python-dotenv>=1.0",
     "typesense>=0.21",
     "httpx>=0.27",
+    "tavily-python>=0.5",
 ]
 
 [project.scripts]

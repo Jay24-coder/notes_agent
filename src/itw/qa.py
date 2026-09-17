@@ -57,6 +57,35 @@ def _format_notes_for_prompt(notes: list[dict[str, Any]]) -> str:
     return "\n---\n".join(blocks)
 
 
+def _not_covered_search_failed_message() -> str:
+    return (
+        "This question is not covered by your notes, and live web search "
+        "did not return a result."
+    )
+
+
+def _try_live_web_search(settings: Settings, question: str) -> AskResult:
+    if not settings.tavily_api_key.strip():
+        raise ItwError(
+            "TAVILY_API_KEY is not set. Add it to .env when using --web-search."
+        )
+    try:
+        search_result = live_web_search(question, tavily_api_key=settings.tavily_api_key)
+    except ItwError:
+        return AskResult(
+            answer=_not_covered_search_failed_message(),
+            citations=[],
+            used_web_search=False,
+            not_covered=True,
+        )
+    return AskResult(
+        answer=f"SOURCE: LIVE WEB SEARCH\n\n{search_result.body}",
+        citations=list(search_result.source_urls),
+        used_web_search=True,
+        not_covered=False,
+    )
+
+
 def ask_question(
     settings: Settings,
     question: str,
@@ -74,24 +103,7 @@ def ask_question(
 
     if not hits:
         if use_web_search:
-            try:
-                web_answer = live_web_search(question)
-            except ItwError:
-                return AskResult(
-                    answer=(
-                        "This question is not covered by your notes, and live web search "
-                        "did not return a result."
-                    ),
-                    citations=[],
-                    used_web_search=False,
-                    not_covered=True,
-                )
-            return AskResult(
-                answer=f"SOURCE: LIVE WEB SEARCH\n\n{web_answer}",
-                citations=[],
-                used_web_search=True,
-                not_covered=False,
-            )
+            return _try_live_web_search(settings, question)
         return AskResult(
             answer="This question is not covered by your notes.",
             citations=[],
@@ -102,21 +114,7 @@ def ask_question(
     best_distance = hits[0].get("_vector_distance")
     if best_distance is not None and best_distance > settings.retrieval_max_vector_distance:
         if use_web_search:
-            try:
-                web_answer = live_web_search(question)
-            except ItwError:
-                return AskResult(
-                    answer="This question is not covered by your notes.",
-                    citations=[],
-                    used_web_search=False,
-                    not_covered=True,
-                )
-            return AskResult(
-                answer=f"SOURCE: LIVE WEB SEARCH\n\n{web_answer}",
-                citations=[],
-                used_web_search=True,
-                not_covered=False,
-            )
+            return _try_live_web_search(settings, question)
         return AskResult(
             answer="This question is not covered by your notes.",
             citations=[],
