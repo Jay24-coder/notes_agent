@@ -61,6 +61,8 @@ Out-of-coverage questions default to a plain “not covered” answer. With `--w
 uv run itw ask "What is the capital of France?" --web-search
 ```
 
+
+
 ### Debug logging
 
 Logs go to stderr (answers/summaries stay on stdout). Default level is `INFO`.
@@ -90,7 +92,7 @@ LOG_LEVEL=DEBUG uv run itw ingest path/to/note.txt
 
 | Issue                       | Fix                                                |
 | --------------------------- | -------------------------------------------------- |
-| `OPENAI_API_KEY is not set` | Create `.env` from `.env.example`                   |
+| `OPENAI_API_KEY is not set` | Create `.env` from `.env.example`                  |
 | `TAVILY_API_KEY is not set` | Set Tavily key in `.env` when using `--web-search` |
 | Typesense connection errors | Run `docker compose up -d` and check port 8108     |
 | Empty `dump/`               | Use task-provided `dump/` or `fixtures/demo_notes` |
