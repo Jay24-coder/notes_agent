@@ -4,6 +4,8 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+from loguru import logger
+
 from itw.config import Settings
 from itw.curator import CuratorResult, run_curator
 from itw.embeddings import embed_text
@@ -28,12 +30,15 @@ class IngestSummary:
 
 
 def ingest_note_file(settings: Settings, path: Path) -> IngestSummary:
+    logger.info("Ingest start path={}", path)
     ensure_collection(settings)
     note = read_note_file(path)
+    logger.debug("Read note id={} title={!r} chars={}", note.note_id, note.title, len(note.content))
     embedding = embed_text(settings, note.content)
     candidates = vector_search(
         settings, embedding, k=8, exclude_id=note.note_id
     )
+    logger.debug("Ingest candidates={} for note_id={}", len(candidates), note.note_id)
     curator: CuratorResult = run_curator(
         settings, note.content, note.note_id, candidates
     )
@@ -72,6 +77,13 @@ def ingest_note_file(settings: Settings, path: Path) -> IngestSummary:
             conflict_rationale=conflict.rationale,
         )
 
+    logger.info(
+        "Ingest done id={} tags={} related={} conflicts={}",
+        note.note_id,
+        len(curator.tags),
+        len(curator.related_ids),
+        len(conflict_ids),
+    )
     return IngestSummary(
         note=note,
         tags=curator.tags,
@@ -89,16 +101,24 @@ def ingest_directory(settings: Settings, directory: Path) -> tuple[list[IngestSu
     if not paths:
         raise ItwError(f"No note files found in {directory}")
 
+    logger.info("Ingest directory={} files={}", directory, len(paths))
     successes: list[IngestSummary] = []
     failures: list[str] = []
     for path in paths:
         try:
             successes.append(ingest_note_file(settings, path))
         except ItwError as exc:
+            logger.error("Ingest failed for {}: {}", path.name, exc.message)
             failures.append(f"{path.name}: {exc.message}")
         except Exception as exc:  # noqa: BLE001
+            logger.exception("Unexpected ingest failure for {}", path.name)
             failures.append(f"{path.name}: {exc}")
 
+    logger.info(
+        "Ingest directory done successes={} failures={}",
+        len(successes),
+        len(failures),
+    )
     return successes, failures
 
 

@@ -2,6 +2,7 @@ import os
 from dataclasses import dataclass
 
 from dotenv import load_dotenv
+from loguru import logger
 
 from itw.errors import ItwError
 
@@ -22,6 +23,21 @@ class Settings:
     typesense_collection: str
     retrieval_max_vector_distance: float
     tavily_api_key: str
+
+
+def settings_debug_summary(settings: Settings) -> str:
+    """Non-secret settings summary safe for DEBUG logs."""
+    return (
+        f"host={settings.typesense_host}:{settings.typesense_port} "
+        f"protocol={settings.typesense_protocol} "
+        f"collection={settings.typesense_collection} "
+        f"embedding_model={settings.openai_embedding_model} "
+        f"chat_model={settings.openai_chat_model} "
+        f"max_vector_distance={settings.retrieval_max_vector_distance} "
+        f"openai_key={'set' if settings.openai_api_key else 'unset'} "
+        f"typesense_key={'set' if settings.typesense_api_key else 'unset'} "
+        f"tavily_key={'set' if settings.tavily_api_key else 'unset'}"
+    )
 
 
 def load_settings() -> Settings:
@@ -47,7 +63,7 @@ def load_settings() -> Settings:
     except ValueError:
         raise ItwError("RETRIEVAL_MAX_VECTOR_DISTANCE must be a number.") from None
 
-    return Settings(
+    settings = Settings(
         openai_api_key=openai_api_key,
         openai_embedding_model=os.getenv(
             "OPENAI_EMBEDDING_MODEL", "text-embedding-3-small"
@@ -61,3 +77,5 @@ def load_settings() -> Settings:
         retrieval_max_vector_distance=max_dist,
         tavily_api_key=os.getenv("TAVILY_API_KEY", "").strip(),
     )
+    logger.debug("Loaded settings: {}", settings_debug_summary(settings))
+    return settings

@@ -4,6 +4,7 @@ import json
 from typing import Any
 
 import typesense
+from loguru import logger
 
 from itw.config import EMBEDDING_DIMENSION, Settings
 from itw.errors import ItwError
@@ -30,10 +31,12 @@ def ensure_collection(settings: Settings) -> None:
     name = settings.typesense_collection
     try:
         client.collections[name].retrieve()
+        logger.info("Typesense collection '{}' already exists", name)
         return
     except typesense.exceptions.ObjectNotFound:
-        pass
+        logger.info("Typesense collection '{}' not found; creating", name)
     except Exception as exc:  # noqa: BLE001
+        logger.exception("Could not reach Typesense")
         raise ItwError(f"Could not reach Typesense at {settings.typesense_host}:{settings.typesense_port}: {exc}") from exc
 
     schema = {
@@ -56,25 +59,34 @@ def ensure_collection(settings: Settings) -> None:
     }
     try:
         client.collections.create(schema)
+        logger.info("Created Typesense collection '{}'", name)
     except Exception as exc:  # noqa: BLE001
+        logger.exception("Failed to create Typesense collection")
         raise ItwError(f"Failed to create Typesense collection '{name}': {exc}") from exc
 
 
 def upsert_note(settings: Settings, document: dict[str, Any]) -> None:
     client = _client(settings)
+    note_id = document.get("id")
     try:
         client.collections[settings.typesense_collection].documents.upsert(document)
+        logger.info("Upserted note id={}", note_id)
     except Exception as exc:  # noqa: BLE001
+        logger.exception("Typesense upsert failed for id={}", note_id)
         raise ItwError(f"Typesense upsert failed: {exc}") from exc
 
 
 def get_note(settings: Settings, note_id: str) -> dict[str, Any] | None:
     client = _client(settings)
     try:
-        return client.collections[settings.typesense_collection].documents[note_id].retrieve()
+        doc = client.collections[settings.typesense_collection].documents[note_id].retrieve()
+        logger.debug("Retrieved note id={}", note_id)
+        return doc
     except typesense.exceptions.ObjectNotFound:
+        logger.debug("Note id={} not found", note_id)
         return None
     except Exception as exc:  # noqa: BLE001
+        logger.exception("Typesense retrieve failed for id={}", note_id)
         raise ItwError(f"Typesense retrieve failed: {exc}") from exc
 
 
@@ -96,13 +108,21 @@ def vector_search(
         "vector_query": _vector_query_param(embedding, k + (1 if exclude_id else 0)),
         "exclude_fields": "embedding",
     }
+    logger.debug(
+        "Vector search k={} exclude_id={} max_distance={}",
+        k,
+        exclude_id,
+        settings.retrieval_max_vector_distance,
+    )
     try:
         multi = client.multi_search.perform({"searches": [search]})
         results = multi.get("results") or []
         if not results:
+            logger.debug("Vector search returned no result blocks")
             return []
         result = results[0]
     except Exception as exc:  # noqa: BLE001
+        logger.exception("Typesense vector search failed")
         raise ItwError(f"Typesense vector search failed: {exc}") from exc
 
     hits: list[dict[str, Any]] = []
@@ -114,6 +134,11 @@ def vector_search(
         hits.append(doc)
         if len(hits) >= k:
             break
+    logger.debug(
+        "Vector search hits={} ids={}",
+        len(hits),
+        [h.get("id") for h in hits],
+    )
     return hits
 
 
@@ -127,6 +152,7 @@ def merge_peer_links(
 ) -> None:
     peer = get_note(settings, peer_id)
     if not peer:
+        logger.debug("Skip peer link merge; peer id={} missing", peer_id)
         return
 
     related = list(peer.get("related_ids") or [])
@@ -147,4 +173,10 @@ def merge_peer_links(
     peer["related_ids"] = related
     peer["conflict_ids"] = conflicts
     peer["conflict_details"] = json.dumps(details)
+    logger.debug(
+        "Merging peer links peer={} add_related={} add_conflict={}",
+        peer_id,
+        add_related,
+        add_conflict,
+    )
     upsert_note(settings, peer)

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 
+from loguru import logger
 from tavily import TavilyClient
 
 from itw.errors import ItwError
@@ -25,6 +27,9 @@ def _require_tavily_key(tavily_api_key: str) -> str:
 def live_web_search(query: str, *, tavily_api_key: str) -> LiveWebSearchResult:
     """Tavily Search for out-of-coverage questions (--web-search only)."""
     api_key = _require_tavily_key(tavily_api_key)
+    logger.info("Tavily search invoked")
+    logger.debug("Tavily query={!r}", query[:200])
+    started = time.perf_counter()
     try:
         client = TavilyClient(api_key=api_key)
         response = client.search(
@@ -35,9 +40,16 @@ def live_web_search(query: str, *, tavily_api_key: str) -> LiveWebSearchResult:
             topic="general",
         )
     except Exception as exc:  # noqa: BLE001
+        logger.exception("Live web search failed")
         raise ItwError(f"Live web search failed: {exc}") from exc
 
+    elapsed_ms = (time.perf_counter() - started) * 1000
     results = response.get("results") or []
+    logger.info(
+        "Tavily search complete results={} elapsed_ms={:.1f}",
+        len(results),
+        elapsed_ms,
+    )
     source_urls: list[str] = []
     for item in results:
         if not isinstance(item, dict):
@@ -72,4 +84,5 @@ def live_web_search(query: str, *, tavily_api_key: str) -> LiveWebSearchResult:
     if source_urls:
         body += "\n\nLive search sources:\n" + "\n".join(f"- {u}" for u in source_urls)
 
+    logger.debug("Tavily source_urls={}", len(source_urls))
     return LiveWebSearchResult(body=body, source_urls=source_urls)

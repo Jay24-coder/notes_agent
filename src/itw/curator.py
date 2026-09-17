@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from openai import OpenAI
+from loguru import logger
 
 from itw.config import Settings
 from itw.errors import ItwError
@@ -42,6 +43,12 @@ def run_curator(
     candidates: list[dict[str, Any]],
 ) -> CuratorResult:
     client = OpenAI(api_key=settings.openai_api_key)
+    logger.debug(
+        "Curator start note_id={} candidates={} content_chars={}",
+        note_id,
+        len(candidates),
+        len(note_content),
+    )
     system = (
         "You organize personal notes into a knowledge base. "
         "Return ONLY valid JSON with keys: tags (string array), related_ids (string array of "
@@ -66,12 +73,14 @@ def run_curator(
             temperature=0.2,
         )
     except Exception as exc:  # noqa: BLE001
+        logger.exception("OpenAI curator request failed for note_id={}", note_id)
         raise ItwError(f"OpenAI curator request failed: {exc}") from exc
 
     raw = (response.choices[0].message.content or "").strip()
     try:
         data = json.loads(raw)
     except json.JSONDecodeError:
+        logger.error("Curator returned invalid JSON for note_id={}", note_id)
         raise ItwError("Curator returned invalid JSON.") from None
 
     tags = [str(t) for t in data.get("tags", []) if str(t).strip()]
@@ -90,4 +99,18 @@ def run_curator(
         rationale = str(item.get("rationale", "")).strip() or "Conflicting facts detected."
         conflicts.append(ConflictLink(note_id=cid, rationale=rationale))
 
+    logger.info(
+        "Curator done note_id={} tags={} related={} conflicts={}",
+        note_id,
+        len(tags),
+        len(related_ids),
+        len(conflicts),
+    )
+    for conflict in conflicts:
+        logger.debug(
+            "Curator conflict note_id={} peer={} rationale={!r}",
+            note_id,
+            conflict.note_id,
+            conflict.rationale[:200],
+        )
     return CuratorResult(tags=tags, related_ids=related_ids, conflicts=conflicts)

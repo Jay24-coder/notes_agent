@@ -61,7 +61,19 @@ Out-of-coverage questions default to a plain “not covered” answer. With `--w
 uv run itw ask "What is the capital of France?" --web-search
 ```
 
+### Debug logging
 
+Logs go to stderr (answers/summaries stay on stdout). Default level is `INFO`.
+
+```bash
+# One-off DEBUG via CLI flag
+uv run itw --verbose ask "What did we decide about the API deadline?"
+
+# Or set LOG_LEVEL in .env / the environment
+LOG_LEVEL=DEBUG uv run itw ingest path/to/note.txt
+```
+
+`--verbose` / `-v` forces DEBUG even when `LOG_LEVEL` is less verbose.
 
 ## Demo checklist
 
@@ -82,6 +94,7 @@ uv run itw ask "What is the capital of France?" --web-search
 | `TAVILY_API_KEY is not set` | Set Tavily key in `.env` when using `--web-search` |
 | Typesense connection errors | Run `docker compose up -d` and check port 8108     |
 | Empty `dump/`               | Use task-provided `dump/` or `fixtures/demo_notes` |
+| Need pipeline debug detail  | Use `itw -v ...` or set `LOG_LEVEL=DEBUG`          |
 
 
 
